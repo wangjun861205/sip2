@@ -1,0 +1,12 @@
+{
+  "host": "127.0.0.1",
+  "port": 9999,
+  "sip_config": {
+    "host": "112.230.195.36",
+    "port": 2030,
+    "pool_size": 20,
+    "timeout": 10,
+    "retry_times": 5,
+    "error_detection": true
+  }
+}
