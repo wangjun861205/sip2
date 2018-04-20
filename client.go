@@ -97,89 +97,7 @@ func ReadResponse(conn *net.TCPConn) ([]byte, error) {
 	}
 }
 
-// func (p *ClientPool) ReliableCommunicate(req interface{}) (interface{}, error) {
-// 	b, err := EncodeRequest(req)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	conn := p.Pop()
-// 	defer p.Push(conn)
-// 	var bResp, zero []byte
-// OUTER_WRITE:
-// 	for i := 0; i < p.retryTimes; i++ {
-// 		_, err = conn.Read(zero)
-// 		if err != nil {
-// 			if netErr, ok := err.(net.Error); ok && (netErr.Timeout() || netErr.Temporary()) {
-// 				conn.SetDeadline(time.Now().Add(time.Duration(p.timeout) * time.Second))
-// 				continue OUTER_WRITE
-// 			} else {
-// 				var newErr error
-// 				conn.Close()
-// 				for {
-// 					conn, newErr = newConn(p.host, p.port)
-// 					if newErr == nil {
-// 						conn.SetDeadline(time.Now().Add(time.Duration(p.timeout) * time.Second))
-// 						continue OUTER_WRITE
-// 					}
-// 				}
-// 			}
-// 		}
-// 		_, err = conn.Write(b)
-// 		if err != nil {
-// 			if netErr, ok := err.(net.Error); ok && (netErr.Timeout() || netErr.Temporary()) {
-// 				conn.SetDeadline(time.Now().Add(time.Duration(p.timeout) * time.Second))
-// 				continue OUTER_WRITE
-// 			} else {
-// 				var newErr error
-// 				conn.Close()
-// 				for {
-// 					conn, newErr = newConn(p.host, p.port)
-// 					if newErr == nil {
-// 						conn.SetDeadline(time.Now().Add(time.Duration(p.timeout) * time.Second))
-// 						continue OUTER_WRITE
-// 					}
-// 				}
-// 			}
-// 		}
-// 		break OUTER_WRITE
-// 	}
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// OUTER_READ:
-// 	for i := 0; i < p.retryTimes; i++ {
-// 		bResp, err = ReadResponse(conn)
-// 		if err != nil {
-// 			if netErr, ok := err.(net.Error); ok && (netErr.Timeout() || netErr.Temporary()) {
-// 				conn.SetDeadline(time.Now().Add(time.Duration(p.timeout) * time.Second))
-// 				continue OUTER_READ
-// 			} else {
-// 				var newErr error
-// 				conn.Close()
-// 				for {
-// 					conn, newErr = newConn(p.host, p.port)
-// 					if newErr == nil {
-// 						return nil, err
-// 					}
-// 				}
-// 			}
-// 		}
-// 		break OUTER_READ
-// 	}
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	resp, err := p.DecodeResponse(bResp)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	if _, ok := resp.(*ResendRequest); ok {
-// 		goto OUTER_WRITE
-// 	}
-// 	return resp, nil
-// }
-
-func (p *ClientPool) ReliableCommunicate(req interface{}, ctx context.Context) (interface{}, error) {
+func (p *ClientPool) ReliableCommunicate(req interface{}) (interface{}, error) {
 	b, err := EncodeRequest(req)
 	if err != nil {
 		return nil, err
@@ -251,6 +169,7 @@ OUTER_READ:
 	if err != nil {
 		return nil, err
 	}
+	fmt.Println(string(bResp))
 	resp, err := p.DecodeResponse(bResp)
 	if err != nil {
 		return nil, err
@@ -260,6 +179,96 @@ OUTER_READ:
 	}
 	return resp, nil
 }
+
+// func (p *ClientPool) ReliableCommunicate(req interface{}, ctx context.Context) (interface{}, error) {
+// 	inCtx := ctx.Value("ctx").(context.Context)
+// 	b, err := EncodeRequest(req)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	conn := p.Pop()
+// 	defer p.Push(conn)
+// 	var bResp, zero []byte
+// OUTER_WRITE:
+// 	for i := 0; i < p.retryTimes; i++ {
+// 		select {
+// 		case <-ctx.Done():
+// 			return nil, ctx.Err()
+// 		case <-inCtx.Done():
+// 			return nil, inCtx.Err()
+// 		default:
+// 			_, err = conn.Read(zero)
+// 			if err != nil {
+// 				if netErr, ok := err.(net.Error); ok && (netErr.Timeout() || netErr.Temporary()) {
+// 					conn.SetDeadline(time.Now().Add(time.Duration(p.timeout) * time.Second))
+// 					continue OUTER_WRITE
+// 				} else {
+// 					var newErr error
+// 					conn.Close()
+// 					for {
+// 						conn, newErr = newConn(p.host, p.port)
+// 						if newErr == nil {
+// 							conn.SetDeadline(time.Now().Add(time.Duration(p.timeout) * time.Second))
+// 							continue OUTER_WRITE
+// 						}
+// 					}
+// 				}
+// 			}
+// 			_, err = conn.Write(b)
+// 			if err != nil {
+// 				if netErr, ok := err.(net.Error); ok && (netErr.Timeout() || netErr.Temporary()) {
+// 					conn.SetDeadline(time.Now().Add(time.Duration(p.timeout) * time.Second))
+// 					continue OUTER_WRITE
+// 				} else {
+// 					var newErr error
+// 					conn.Close()
+// 					for {
+// 						conn, newErr = newConn(p.host, p.port)
+// 						if newErr == nil {
+// 							conn.SetDeadline(time.Now().Add(time.Duration(p.timeout) * time.Second))
+// 							continue OUTER_WRITE
+// 						}
+// 					}
+// 				}
+// 			}
+// 			break OUTER_WRITE
+// 		}
+// 	}
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// OUTER_READ:
+// 	for i := 0; i < p.retryTimes; i++ {
+// 		bResp, err = ReadResponse(conn)
+// 		if err != nil {
+// 			if netErr, ok := err.(net.Error); ok && (netErr.Timeout() || netErr.Temporary()) {
+// 				conn.SetDeadline(time.Now().Add(time.Duration(p.timeout) * time.Second))
+// 				continue OUTER_READ
+// 			} else {
+// 				var newErr error
+// 				conn.Close()
+// 				for {
+// 					conn, newErr = newConn(p.host, p.port)
+// 					if newErr == nil {
+// 						return nil, err
+// 					}
+// 				}
+// 			}
+// 		}
+// 		break OUTER_READ
+// 	}
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	resp, err := p.DecodeResponse(bResp)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	if _, ok := resp.(*ResendRequest); ok {
+// 		goto OUTER_WRITE
+// 	}
+// 	return resp, nil
+// }
 
 func (p *ClientPool) Close(ctx context.Context) error {
 	var closedNum uint64

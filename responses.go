@@ -3,6 +3,7 @@ package sip2
 import (
 	"bytes"
 	"fmt"
+	"io/ioutil"
 	"reflect"
 )
 
@@ -132,6 +133,8 @@ type ItemInformationResponse struct {
 	HoldPickupDate    `json:"hold_picked_date"`
 	ItemID            `json:"item_id"`
 	TitleID           `json:"title_id"`
+	Author            `json:"author"`
+	ISBN              `json:"isbn"`
 	Owner             `json:"owner"`
 	CurrencyType      `json:"currency_type"`
 	FeeAmount         `json:"fee_amount"`
@@ -141,6 +144,7 @@ type ItemInformationResponse struct {
 	ItemProperties    `json:"item_properties"`
 	ScreenMessage     `json:"screen_message"`
 	PrintLine         `json:"print_line"`
+	Publisher         `json:"publisher"`
 }
 
 type ItemStatusUpdateResponse struct {
@@ -244,6 +248,58 @@ type PatronInformationResponse struct {
 	PrintLine             `json:"print_line"`
 }
 
+// func (p *ClientPool) DecodeResponse(b []byte) (interface{}, error) {
+// 	reader := bytes.NewReader(b)
+// 	commandID := make([]byte, 2)
+// 	_, err := reader.Read(commandID)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	resp, err := GenResponse(string(commandID))
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	respVal := reflect.ValueOf(resp).Elem()
+// 	for i := 0; i < respVal.NumField(); i++ {
+// 		field := respVal.Field(i).Interface().(SipField)
+// 		id, _, length := field.Info()
+// 		field.Decode(reader, id, length)
+// 	}
+// 	return resp, nil
+// }
+
+func classifyFields(resp interface{}) ([]SipField, map[string]SipField) {
+	fixedFields := make([]SipField, 0, 16)
+	variableFields := make(map[string]SipField)
+	val := reflect.ValueOf(resp).Elem()
+	for i := 0; i < val.NumField(); i++ {
+		field := val.Field(i).Interface().(SipField)
+		id, _, length := field.Info()
+		if length != -1 && id == "" {
+			fixedFields = append(fixedFields, field)
+		} else {
+			variableFields[id] = field
+		}
+	}
+	return fixedFields, variableFields
+}
+
+func decodeVarFields(r *bytes.Reader, varFieldsMap map[string]SipField) error {
+	bs, _ := ioutil.ReadAll(r)
+	fieldBytes := bytes.Split(bs, []byte("|"))
+	for _, fb := range fieldBytes {
+		if field, ok := varFieldsMap[string(fb[:2])]; ok {
+			reader := bytes.NewReader(append(fb, '|'))
+			id, _, length := field.Info()
+			err := field.Decode(reader, id, length)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 func (p *ClientPool) DecodeResponse(b []byte) (interface{}, error) {
 	reader := bytes.NewReader(b)
 	commandID := make([]byte, 2)
@@ -255,11 +311,17 @@ func (p *ClientPool) DecodeResponse(b []byte) (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	respVal := reflect.ValueOf(resp).Elem()
-	for i := 0; i < respVal.NumField(); i++ {
-		field := respVal.Field(i).Interface().(SipField)
+	fixed, variable := classifyFields(resp)
+	for _, field := range fixed {
 		id, _, length := field.Info()
-		field.Decode(reader, id, length)
+		err = field.Decode(reader, id, length)
+		if err != nil {
+			return nil, err
+		}
+	}
+	err = decodeVarFields(reader, variable)
+	if err != nil {
+		return nil, err
 	}
 	return resp, nil
 }

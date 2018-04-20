@@ -41,6 +41,9 @@ func (sv *StrValue) Decode(r *bytes.Reader, id string, length int) error {
 	if err != nil {
 		return err
 	}
+	if len(content) == 0 {
+		return nil
+	}
 	*sv = StrValue(content)
 	return nil
 }
@@ -80,6 +83,9 @@ func (bv *BoolValue) Decode(r *bytes.Reader, id string, length int) error {
 	content, err := readN(r, 2)
 	if err != nil {
 		return err
+	}
+	if len(content) == 0 {
+		return nil
 	}
 	if content[0] == 'Y' {
 		*bv = BoolValue(true)
@@ -128,6 +134,9 @@ func (iv *IntValue) Decode(r *bytes.Reader, id string, length int) error {
 	if err != nil {
 		return err
 	}
+	if len(content) == 0 {
+		return nil
+	}
 	i64, err := strconv.ParseInt(string(content), 10, 64)
 	if err != nil {
 		return err
@@ -167,6 +176,9 @@ func (fv *FloatValue) Decode(r *bytes.Reader, id string, length int) error {
 	content, err := readContent(r, length)
 	if err != nil {
 		return err
+	}
+	if len(content) == 0 {
+		return nil
 	}
 	v, err := strconv.ParseFloat(string(content), 10)
 	if err != nil {
@@ -208,7 +220,15 @@ func (tv *TimeValue) Decode(r *bytes.Reader, id string, length int) error {
 	if err != nil {
 		return err
 	}
-	timeVal, err := time.Parse("20060102    150405", string(content))
+	if len(content) == 0 {
+		return nil
+	}
+	var timeVal time.Time
+	if bytes.Contains(content, []byte("-")) {
+		timeVal, err = time.Parse("2006-01-02", string(content))
+	} else {
+		timeVal, err = time.Parse("20060102    150405", string(content))
+	}
 	if err != nil {
 		return errors.New("TimeValue Decode: " + err.Error())
 	}
@@ -246,6 +266,9 @@ func (ssv *StrSliceValue) Decode(r *bytes.Reader, id string, length int) error {
 	content, err := readContent(r, length)
 	if err != nil {
 		return err
+	}
+	if len(content) == 0 {
+		return nil
 	}
 	*ssv = strings.Split(string(content), ",")
 	return nil
@@ -778,7 +801,7 @@ func (tp TimeoutPeriod) Info() (id, name string, length int) {
 }
 
 type RetriesAllowed struct {
-	*BoolValue
+	*IntValue
 }
 
 func (ra RetriesAllowed) Info() (id, name string, length int) {
@@ -1022,7 +1045,7 @@ type HoldPickupDate struct {
 }
 
 func (hpd HoldPickupDate) Info() (id, name string, length int) {
-	return "CM", "hold_pickup_date", 18
+	return "CM", "hold_pickup_date", -1
 }
 
 type Owner struct {
@@ -1095,6 +1118,30 @@ type FineItemsCount struct {
 
 func (fic FineItemsCount) Info() (id, name string, length int) {
 	return "", "fine_items_count", 4
+}
+
+type Author struct {
+	*StrValue
+}
+
+func (a Author) Info() (id, name string, length int) {
+	return "AW", "author", -1
+}
+
+type ISBN struct {
+	*StrValue
+}
+
+func (isbn ISBN) Info() (id, name string, length int) {
+	return "AK", "isbn", -1
+}
+
+type Publisher struct {
+	*StrValue
+}
+
+func (p Publisher) Info() (id, name string, length int) {
+	return "PB", "publisher", -1
 }
 
 // type UnknowedJE struct {
