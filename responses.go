@@ -2,6 +2,7 @@ package sip2
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"reflect"
@@ -248,26 +249,6 @@ type PatronInformationResponse struct {
 	PrintLine             `json:"print_line"`
 }
 
-// func (p *ClientPool) DecodeResponse(b []byte) (interface{}, error) {
-// 	reader := bytes.NewReader(b)
-// 	commandID := make([]byte, 2)
-// 	_, err := reader.Read(commandID)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	resp, err := GenResponse(string(commandID))
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	respVal := reflect.ValueOf(resp).Elem()
-// 	for i := 0; i < respVal.NumField(); i++ {
-// 		field := respVal.Field(i).Interface().(SipField)
-// 		id, _, length := field.Info()
-// 		field.Decode(reader, id, length)
-// 	}
-// 	return resp, nil
-// }
-
 func classifyFields(resp interface{}) ([]SipField, map[string]SipField) {
 	fixedFields := make([]SipField, 0, 16)
 	variableFields := make(map[string]SipField)
@@ -301,6 +282,9 @@ func decodeVarFields(r *bytes.Reader, varFieldsMap map[string]SipField) error {
 }
 
 func (p *ClientPool) DecodeResponse(b []byte) (interface{}, error) {
+	if string(b) == "无效指令\n" {
+		return nil, errors.New("Invalid request struct")
+	}
 	reader := bytes.NewReader(b)
 	commandID := make([]byte, 2)
 	_, err := reader.Read(commandID)

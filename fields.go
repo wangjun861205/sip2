@@ -80,9 +80,17 @@ func (bv *BoolValue) Decode(r *bytes.Reader, id string, length int) error {
 	if err != nil {
 		return err
 	}
-	content, err := readN(r, 2)
-	if err != nil {
-		return err
+	var content []byte
+	if id == "" {
+		content, err = readN(r, 1)
+		if err != nil {
+			return err
+		}
+	} else {
+		content, err = readN(r, 2)
+		if err != nil {
+			return err
+		}
 	}
 	if len(content) == 0 {
 		return nil
@@ -668,7 +676,7 @@ type RenewalOK struct {
 	*BoolValue
 }
 
-func (rok RenewalOK) info() (id, name string, length int) {
+func (rok RenewalOK) Info() (id, name string, length int) {
 	return "", "renewal_ok", 1
 }
 
